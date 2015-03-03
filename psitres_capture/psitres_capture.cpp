@@ -46,12 +46,10 @@ namespace boost {
 	}
 }
 
-// TODO: name this better
 struct SharedResources{
-	SharedResources() :display(Mat::zeros(512, 612, CV_8UC3)), frameno(){
+	SharedResources() :frameno(){
 		frameno = 0;
 	}
-	Mat display;
 	atomic<int> frameno;
 };
 
@@ -72,7 +70,7 @@ void writeMetadata(const path& p, const string& name, const T& t){
 }
 
 struct PGCam{
-	PGCam(const uint32_t& serial, const path& BASE_PATH, const locale& TS_LOCALE, function_node<FlowData>& source_node, SharedResources& resource) :serial(serial), BASE_PATH(BASE_PATH), TS_LOCALE(TS_LOCALE), source_node(source_node), resource(resource), timestamp(microsec_clock::local_time()){
+	PGCam(const uint32_t& serial, const path& BASE_PATH, const locale& TS_LOCALE, function_node<FlowData>& source_node) :serial(serial), BASE_PATH(BASE_PATH), TS_LOCALE(TS_LOCALE), source_node(source_node), timestamp(microsec_clock::local_time()){
 		SystemInfo sysInfo;
 		PG_Call(Utilities::GetSystemInfo(&sysInfo));
 		writeMetadata(getMetadataPath("SystemInfo"), "SystemInfo", sysInfo);
@@ -97,9 +95,6 @@ struct PGCam{
 			throw;
 		}
 	}
-	Mat read() const{
-		return resource.display;
-	}
 	~PGCam(){
 		PG_Call(cam.StopCapture());
 		PG_Call(cam.Disconnect());
@@ -110,9 +105,9 @@ struct PGCam{
 		tsStr << timestamp;
 		path p(BASE_PATH);
 		p /= tsStr.str();
-		p += ".";
+		p += "_";
 		p += to_string(serial);
-		p += ".";
+		p += "_";
 		p += structName;
 		p += ".xml";
 		return p;
@@ -120,10 +115,9 @@ struct PGCam{
 	const uint32_t serial;
 	const path BASE_PATH;
 	const locale TS_LOCALE;
+	const ptime timestamp;
 	function_node<FlowData>& source_node;
-	SharedResources& resource;
 	GigECamera cam;
-	ptime timestamp;
 };
 
 void OnImageGrabbed(Image* pImage, const void* pCallbackData)
@@ -149,8 +143,7 @@ struct GUI{
 		uint32_t flags = KeyedAction::CONTINUE;
 		do{
 			for (vector<Ptr<const PGCam> >::const_iterator pCamIt = cams.cbegin(); pCamIt != cams.cend(); pCamIt++){
-				Mat display = (*pCamIt)->read();
-				imshow(to_string((*pCamIt)->serial), display);
+				namedWindow(to_string((*pCamIt)->serial));
 			}
 			flags |= waitKeyEvent();
 		} while (!(flags & KeyedAction::QUIT));
@@ -184,9 +177,9 @@ struct GUI{
 	}
 	const vector<Ptr<const PGCam> > cams;
 	const float fps;
+	map<string, KeyedAction> actionMap;
 	string history;
 	vector<ptime> times;
-	map<string, KeyedAction> actionMap;
 };
 
 namespace boost {
@@ -266,17 +259,19 @@ namespace boost {
 }
 
 struct SourceNode{
-	SourceNode(const path& BASE_PATH, const locale& TS_LOCALE, map<uint32_t, SharedResources>& resources) : BASE_PATH(BASE_PATH), TS_LOCALE(TS_LOCALE), resources(resources){
+	SourceNode(const path& BASE_PATH, const locale& TS_LOCALE) : BASE_PATH(BASE_PATH), TS_LOCALE(TS_LOCALE), resources(new map<uint32_t, SharedResources>){
 	}
 	void operator() (FlowData data) {
 		try{
 			Image bgrImage;
 			PG_Call(data.image.Convert(PIXEL_FORMAT_BGR, &bgrImage));
 
-			Mat display(bgrImage.GetRows(), bgrImage.GetCols(), CV_8UC3, bgrImage.GetData());
-			resize(display, resources[data.serial].display, resources[data.serial].display.size());
+			Mat bgrMat(bgrImage.GetRows(), bgrImage.GetCols(), CV_8UC3, bgrImage.GetData());
+			Mat display = Mat::zeros(512, 612, CV_8UC3);
+			resize(bgrMat, display, display.size());
+			imshow(to_string(data.serial), display);
 
-			int frameno = ++resources[data.serial].frameno;
+			int frameno = ++(*resources)[data.serial].frameno;
 
 			path datePath;
 			datePath = BASE_PATH;
@@ -298,14 +293,14 @@ struct SourceNode{
 			path imgPath;
 			imgPath = hourPath;
 			imgPath /= tsStr.str();
-			imgPath += ".";
+			imgPath += "_";
 			imgPath += to_string(data.serial);
-			imgPath += ".";
+			imgPath += "_";
 			imgPath += to_string(frameno);
 			imgPath += ".jpg";
 			bgrImage.Save(imgPath.string().c_str());
 
-			imgPath += ".ImageMetadata.xml";
+			imgPath += "_ImageMetadata.xml";
 			writeMetadata(imgPath, "ImageMetadata", data.image.GetMetadata());
 
 			ostringstream infoStr;
@@ -321,7 +316,7 @@ struct SourceNode{
 	const path BASE_PATH;
 	const locale TS_LOCALE;
 	const locale HOUR_LOCALE = locale(cout.getloc(), new time_facet("%H"));
-	map<uint32_t, SharedResources>& resources;
+	Ptr<map<uint32_t, SharedResources> > resources;
 };
 
 int psitres_capture(int argc, _TCHAR* argv[]){
@@ -337,11 +332,11 @@ int psitres_capture(int argc, _TCHAR* argv[]){
 
 	graph g;
 	map<uint32_t, SharedResources> resources;
-	function_node<FlowData> sourceNode(g, unlimited, SourceNode(BASE_PATH, TS_LOCALE, resources));
+	function_node<FlowData> sourceNode(g, unlimited, SourceNode(BASE_PATH, TS_LOCALE));
 	vector<Ptr<const PGCam> > cams;
 	try{
 		for (std::array<uint32_t, 2>::const_iterator serialIt = PG_SERIALS.cbegin(); serialIt < PG_SERIALS.cend(); serialIt++){
-			cams.push_back(new PGCam(*serialIt, BASE_PATH, TS_LOCALE, sourceNode, resources[*serialIt]));
+			cams.push_back(new PGCam(*serialIt, BASE_PATH, TS_LOCALE, sourceNode));
 		}
 		GUI gui(cams, FPS);
 		gui.mainLoop();
