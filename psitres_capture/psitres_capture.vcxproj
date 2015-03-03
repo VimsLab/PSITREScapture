@@ -101,13 +101,13 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\local\boost_1_56_0;C:\Users\rhein\Downloads\tbb43_20140724oss\include;C:\Users\rhein\Downloads\opencv\build\include;C:\Program Files\Point Grey Research\FlyCapture2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\local\boost_1_56_0;C:\local\tbb43_20140724oss\include;C:\local\opencv\build\include;C:\Program Files\Point Grey Research\FlyCapture2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>tbb.lib;FlyCapture2_v100.lib;opencv_core2410d.lib;opencv_highgui2410d.lib;opencv_imgproc2410d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\local\boost_1_56_0\lib64-msvc-12.0;C:\Users\rhein\Downloads\tbb43_20140724oss\lib\intel64\vc12;C:\Users\rhein\Downloads\opencv\build\x64\vc12\lib;C:\Program Files\Point Grey Research\FlyCapture2\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\local\boost_1_56_0\lib64-msvc-12.0;C:\local\tbb43_20140724oss\lib\intel64\vc12;C:\local\opencv\build\x64\vc12\lib;C:\Program Files\Point Grey Research\FlyCapture2\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -139,7 +139,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\local\boost_1_56_0;C:\Users\rhein\Downloads\tbb43_20140724oss\include;C:\Users\rhein\Downloads\opencv\build\include;C:\Program Files\Point Grey Research\FlyCapture2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\local\boost_1_56_0;C:\local\tbb43_20140724oss\include;C:\local\opencv\build\include;C:\Program Files\Point Grey Research\FlyCapture2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -147,7 +147,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>tbb.lib;FlyCapture2_v100.lib;opencv_core2410.lib;opencv_highgui2410.lib;opencv_imgproc2410.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\local\boost_1_56_0\lib64-msvc-12.0;C:\Users\rhein\Downloads\tbb43_20140724oss\lib\intel64\vc12;C:\Users\rhein\Downloads\opencv\build\x64\vc12\lib;C:\Program Files\Point Grey Research\FlyCapture2\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\local\boost_1_56_0\lib64-msvc-12.0;C:\local\tbb43_20140724oss\lib\intel64\vc12;C:\local\opencv\build\x64\vc12\lib;C:\Program Files\Point Grey Research\FlyCapture2\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

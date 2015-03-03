@@ -146,7 +146,6 @@ struct GUI{
 		actionMap["quit"] = KeyedAction::QUIT;
 	}
 	void mainLoop(){
-		//int frame_no = 0;
 		uint32_t flags = KeyedAction::CONTINUE;
 		do{
 			for (vector<Ptr<const PGCam> >::const_iterator pCamIt = cams.cbegin(); pCamIt != cams.cend(); pCamIt++){
@@ -154,7 +153,7 @@ struct GUI{
 				imshow(to_string((*pCamIt)->serial), display);
 			}
 			flags |= waitKeyEvent();
-		} while (!(flags & KeyedAction::QUIT));// && (++frame_no < (fps * 15)));
+		} while (!(flags & KeyedAction::QUIT));
 	}
 	KeyedAction waitKeyEvent(){
 		int resp = waitKey(int(1000 / fps));
@@ -301,6 +300,8 @@ struct SourceNode{
 			imgPath /= tsStr.str();
 			imgPath += ".";
 			imgPath += to_string(data.serial);
+			imgPath += ".";
+			imgPath += to_string(resources[data.serial].frameno);
 			imgPath += ".jpg";
 			bgrImage.Save(imgPath.string().c_str());
 
@@ -312,12 +313,10 @@ struct SourceNode{
 			metaPath += ".ImageMetadata.xml";
 			writeMetadata(metaPath, "ImageMetadata", data.image.GetMetadata());
 
-			/*
 			ostringstream infoStr;
 			time_duration dur = time_period(data.timestamp, microsec_clock::local_time()).length();
 			infoStr << data.serial << ": " << resources[data.serial].frameno << " -> " << dur << '\n';
 			cerr << infoStr.str();
-			*/
 		}
 		catch (const exception& e){
 			cerr << e.what() << endl;
@@ -338,7 +337,8 @@ int psitres_capture(int argc, _TCHAR* argv[]){
 	static const path BASE_PATH = "E:\\stereod\\";
 #endif
 	static const locale TS_LOCALE = locale(cout.getloc(), new time_facet("%Y%m%dT%H%M%S%F"));
-	static const float FPS = 30;
+	static const float FPS = 60;
+	create_directories(BASE_PATH);
 
 	graph g;
 	map<uint32_t, SharedResources> resources;
