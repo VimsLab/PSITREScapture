@@ -276,7 +276,7 @@ struct SourceNode{
 			Mat display(bgrImage.GetRows(), bgrImage.GetCols(), CV_8UC3, bgrImage.GetData());
 			resize(display, resources[data.serial].display, resources[data.serial].display.size());
 
-			resources[data.serial].frameno++;
+			int frameno = ++resources[data.serial].frameno;
 
 			path datePath;
 			datePath = BASE_PATH;
@@ -301,21 +301,16 @@ struct SourceNode{
 			imgPath += ".";
 			imgPath += to_string(data.serial);
 			imgPath += ".";
-			imgPath += to_string(resources[data.serial].frameno);
+			imgPath += to_string(frameno);
 			imgPath += ".jpg";
 			bgrImage.Save(imgPath.string().c_str());
 
-			path metaPath;
-			metaPath = hourPath;
-			metaPath /= tsStr.str();
-			metaPath += ".";
-			metaPath += to_string(data.serial);
-			metaPath += ".ImageMetadata.xml";
-			writeMetadata(metaPath, "ImageMetadata", data.image.GetMetadata());
+			imgPath += ".ImageMetadata.xml";
+			writeMetadata(imgPath, "ImageMetadata", data.image.GetMetadata());
 
 			ostringstream infoStr;
 			time_duration dur = time_period(data.timestamp, microsec_clock::local_time()).length();
-			infoStr << data.serial << ": " << resources[data.serial].frameno << " -> " << dur << '\n';
+			infoStr << data.timestamp << " " << data.serial << " " << frameno << " -> " << dur << '\n';
 			cerr << infoStr.str();
 		}
 		catch (const exception& e){
