@@ -27,12 +27,15 @@
     <ClInclude Include="errorutils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="serialization.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="psitres_capture.cpp">
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

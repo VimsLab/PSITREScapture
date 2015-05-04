@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "errorutils.h"
+#include "serialization.h"
 #include <Windows.h>
 #include <FlyCapture2.h>
 #include <opencv2\opencv.hpp>
@@ -21,6 +22,7 @@
 #include <sstream>
 #include <algorithm>
 
+
 using namespace FlyCapture2;
 using namespace std;
 using namespace cv;
@@ -32,25 +34,15 @@ using namespace boost::serialization;
 using namespace boost::archive;
 using namespace boost::program_options;
 
-struct SourceNode;
+
+// forward declarations
 struct PGCam;
 struct FlowData;
 struct SharedResources;
 struct GUI;
 enum KeyedAction;
 void OnImageGrabbed(Image*, const void*);
-template<typename T>
-void writeMetadata(const path& p, const string& name, const T& t);
-namespace boost {
-	namespace serialization {
-		template<class Archive>
-		void serialize(Archive&, ImageMetadata&, const unsigned int);
-		template<class Archive>
-		void serialize(Archive&, CameraInfo&, const unsigned int);
-	}
-}
 
-map<uint32_t, SharedResources> resources;
 
 struct SharedResources{
 	SharedResources() :frameno(){
@@ -59,16 +51,10 @@ struct SharedResources{
 	atomic<int> frameno;
 };
 
-template<typename T>
-void writeMetadata(const path& p, const string& name, const T& t){
-	ofstream ofs(p.string().c_str());
-	assert_throw(ofs.good());
-	xml_oarchive ar(ofs);
-	ar << make_nvp(name.c_str(), t);
-}
 
 struct PGCam{
-	PGCam(const uint32_t& serial, const path& BASE_PATH, const locale& TS_LOCALE, const bool& start_capture) :serial(serial), BASE_PATH(BASE_PATH), TS_LOCALE(TS_LOCALE), timestamp(microsec_clock::local_time()){
+	PGCam(const uint32_t& serial, const path& BASE_PATH, const locale& TS_LOCALE, const bool& start_capture) 
+		:serial(serial), BASE_PATH(BASE_PATH), TS_LOCALE(TS_LOCALE), timestamp(microsec_clock::local_time()){
 		SystemInfo sysInfo;
 		PG_Call(Utilities::GetSystemInfo(&sysInfo));
 		writeMetadata(getMetadataPath("SystemInfo"), "SystemInfo", sysInfo);
@@ -130,56 +116,89 @@ struct PGCam{
 	Camera cam;
 };
 
-void OnImageGrabbed(Image* pImage, const void* pCallbackData)
-{
+
+struct FlowData{
+	FlowData(const path& BASE_PATH, const locale& HOUR_LOCALE, const locale& TS_LOCALE, const int& serial, const ptime& timestamp, const int& frameno, const Image* pImage) :
+		BASE_PATH(BASE_PATH), HOUR_LOCALE(HOUR_LOCALE), TS_LOCALE(TS_LOCALE), serial(serial), timestamp(timestamp), frameno(frameno){
+		image.DeepCopy(pImage);
+	}
+	FlowData(){}
+	path BASE_PATH;
+	locale HOUR_LOCALE;
+	locale TS_LOCALE;
+	int serial;
+	ptime timestamp;
+	int frameno;
+	Image image;
+};
+
+
+map<uint32_t, SharedResources> resources;
+graph g;
+function_node<FlowData> source(g, unlimited, [](FlowData data){
 	try{
-		ptime timestamp = microsec_clock::local_time();
-		const PGCam* cam = static_cast<const PGCam*>(pCallbackData);
-		int frameno = ++resources[cam->serial].frameno;
-		
 		path datePath;
-		datePath = cam->BASE_PATH;
-		datePath /= to_iso_string(timestamp.date());
+		datePath = data.BASE_PATH;
+		datePath /= to_iso_string(data.timestamp.date());
 		create_directories(datePath);
 
 		ostringstream hourStr;
-		hourStr.imbue(cam->HOUR_LOCALE);
-		hourStr << timestamp;
-		
+		hourStr.imbue(data.HOUR_LOCALE);
+		hourStr << data.timestamp;
+
 		path hourPath;
 		hourPath = datePath;
 		hourPath /= hourStr.str();
 		create_directories(hourPath);
 
 		ostringstream tsStr;
-		tsStr.imbue(cam->TS_LOCALE);
-		tsStr << timestamp;
+		tsStr.imbue(data.TS_LOCALE);
+		tsStr << data.timestamp;
 
 		path imgPath;
 		imgPath = hourPath;
 		imgPath /= tsStr.str();
 		imgPath += "_";
-		imgPath += to_string(cam->serial);
+		imgPath += to_string(data.serial);
 		imgPath += "_";
-		imgPath += to_string(frameno);
+		imgPath += to_string(data.frameno);
 		imgPath += ".jpg";
-		
+
 		path metaPath(imgPath);
 		metaPath += "_ImageMetadata.xml";
-		
-		pImage->Save(imgPath.string().c_str());
-		writeMetadata(metaPath, "ImageMetadata", pImage->GetMetadata());
+
+		data.image.Save(imgPath.string().c_str());
+		writeMetadata(metaPath, "ImageMetadata", data.image.GetMetadata());
 
 		Image bgrImage;
-		PG_Call(pImage->Convert(PIXEL_FORMAT_BGR, &bgrImage));
+		PG_Call(data.image.Convert(PIXEL_FORMAT_BGR, &bgrImage));
 		Mat bgrMat = Mat(bgrImage.GetRows(), bgrImage.GetCols(), CV_8UC3, bgrImage.GetData());
 		Mat display = Mat::zeros(512, 612, CV_8UC3);
 		resize(bgrMat, display, display.size());
-		imshow(to_string(cam->serial), display);
+		imshow(to_string(data.serial), display);
 
 		ostringstream infoStr;
-		infoStr << timestamp << " " << cam->serial << " " << frameno << endl;
+		infoStr << data.timestamp << " " << data.serial << " " << data.frameno << endl;
 		cerr << infoStr.str();
+	}
+	catch (const exception& e){
+		cerr << e.what() << endl;
+	}
+	catch (...){
+		cerr << "..." << endl;
+	}
+});
+
+
+void OnImageGrabbed(Image* pImage, const void* pCallbackData)
+{
+	try{
+		ptime timestamp = microsec_clock::local_time();
+		const PGCam* cam = static_cast<const PGCam*>(pCallbackData);
+		int frameno = ++resources[cam->serial].frameno;
+
+		FlowData data(cam->BASE_PATH, cam->HOUR_LOCALE, cam->TS_LOCALE, cam->serial, timestamp, frameno, pImage);
+		source.try_put(data);
 	}
 	catch (const exception& e){
 		cerr << e.what() << endl;
@@ -189,10 +208,12 @@ void OnImageGrabbed(Image* pImage, const void* pCallbackData)
 	}
 }
 
+
 enum KeyedAction{
 	CONTINUE = 0,
 	QUIT = 1
 };
+
 
 struct GUI{
 	GUI(const vector<Ptr<PGCam> >& cams, const float& fps) :cams(cams), fps(fps > 0 ? fps : 60){
@@ -202,10 +223,7 @@ struct GUI{
 		uint32_t flags = KeyedAction::CONTINUE;
 		do{
 			try{
-				/*for (vector<Ptr<PGCam> >::const_iterator pCamIt = cams.cbegin(); pCamIt != cams.cend(); pCamIt++){
-					namedWindow(to_string((*pCamIt)->serial));
-					}*/
-				flags |= waitKeyEvent();
+				flags ^= waitKeyEvent();
 			}
 			catch (const exception& e){
 				cerr << e.what() << endl;
@@ -215,7 +233,7 @@ struct GUI{
 			}
 		} while (!(flags & KeyedAction::QUIT));
 	}
-	KeyedAction waitKeyEvent(){		
+	KeyedAction waitKeyEvent(){
 		int resp = waitKey(int(1000 / fps));
 		if (resp >= 0){
 			char key = resp;
@@ -250,81 +268,6 @@ struct GUI{
 	vector<ptime> times;
 };
 
-namespace boost {
-	namespace serialization {
-		template<class Archive>
-		void serialize(Archive& ar, ImageMetadata& md, const unsigned int version)
-		{
-			ar & make_nvp("embeddedTimeStamp", md.embeddedTimeStamp);
-			ar & make_nvp("embeddedGain", md.embeddedGain);
-			ar & make_nvp("embeddedShutter", md.embeddedShutter);
-			ar & make_nvp("embeddedBrightness", md.embeddedBrightness);
-			ar & make_nvp("embeddedExposure", md.embeddedExposure);
-			ar & make_nvp("embeddedWhiteBalance", md.embeddedWhiteBalance);
-			ar & make_nvp("embeddedFrameCounter", md.embeddedFrameCounter);
-			ar & make_nvp("embeddedStrobePattern", md.embeddedStrobePattern);
-			ar & make_nvp("embeddedGPIOPinState", md.embeddedGPIOPinState);
-			ar & make_nvp("embeddedROIPosition", md.embeddedROIPosition);
-			//ar & make_nvp("reserved", md.reserved);
-		}
-		template<class Archive>
-		void serialize(Archive& ar, CameraInfo& camInfo, const unsigned int version){
-			ar & make_nvp("applicationIPAddress", camInfo.applicationIPAddress);
-			ar & make_nvp("applicationPort", camInfo.applicationPort);
-			ar & make_nvp("bayerTileFormat", camInfo.bayerTileFormat);
-			ar & make_nvp("busNumber", camInfo.busNumber);
-			ar & make_nvp("ccpStatus", camInfo.ccpStatus);
-			//ar & make_nvp("configROM", camInfo.configROM);
-			//ar & make_nvp("defaultGateway", camInfo.defaultGateway);
-			ar & make_nvp("driverName", string(camInfo.driverName));
-			ar & make_nvp("driverType", camInfo.driverType);
-			ar & make_nvp("firmwareBuildTime", string(camInfo.firmwareBuildTime));
-			ar & make_nvp("firmwareVersion", string(camInfo.firmwareVersion));
-			ar & make_nvp("gigEMajorVersion", camInfo.gigEMajorVersion);
-			ar & make_nvp("gigEMinorVersion", camInfo.gigEMinorVersion);
-			ar & make_nvp("iidcVer", camInfo.iidcVer);
-			ar & make_nvp("interfaceType", camInfo.interfaceType);
-			//ar & make_nvp("ipAddress", camInfo.ipAddress);
-			ar & make_nvp("isColorCamera", camInfo.isColorCamera);
-			//ar & make_nvp("macAddress", camInfo.macAddress);
-			ar & make_nvp("maximumBusSpeed", camInfo.maximumBusSpeed);
-			ar & make_nvp("modelName", string(camInfo.modelName));
-			ar & make_nvp("nodeNumber", camInfo.nodeNumber);
-			ar & make_nvp("pcieBusSpeed", camInfo.pcieBusSpeed);
-			//ar & make_nvp("reserved", camInfo.reserved);
-			ar & make_nvp("sensorInfo", string(camInfo.sensorInfo));
-			ar & make_nvp("sensorResolution", string(camInfo.sensorResolution));
-			ar & make_nvp("serialNumber", camInfo.serialNumber);
-			//ar & make_nvp("subnetMask", camInfo.subnetMask);
-			ar & make_nvp("userDefinedName", string(camInfo.userDefinedName));
-			ar & make_nvp("vendorName", string(camInfo.vendorName));
-			ar & make_nvp("xmlURL1", string(camInfo.xmlURL1));
-			ar & make_nvp("xmlURL2", string(camInfo.xmlURL2));
-		}
-		template<class Archive>
-		void serialize(Archive& ar, SystemInfo& sysInfo, const unsigned int version){
-			ar & make_nvp("byteOrder", sysInfo.byteOrder);
-			ar & make_nvp("cpuDescription", string(sysInfo.cpuDescription));
-			ar & make_nvp("driverList", string(sysInfo.driverList));
-			ar & make_nvp("gpuDescription", string(sysInfo.gpuDescription));
-			ar & make_nvp("libraryList", string(sysInfo.libraryList));
-			ar & make_nvp("numCpuCores", sysInfo.numCpuCores);
-			ar & make_nvp("osDescription", string(sysInfo.osDescription));
-			ar & make_nvp("osType", sysInfo.osType);
-			//ar & make_nvp("reserved", sysInfo.reserved);
-			ar & make_nvp("screenHeight", sysInfo.screenHeight);
-			ar & make_nvp("screenWidth", sysInfo.screenWidth);
-			ar & make_nvp("sysMemSize", sysInfo.sysMemSize);
-		}
-		template<class Archive>
-		void serialize(Archive& ar, FC2Version& fc2Info, const unsigned int version){
-			ar & make_nvp("build", fc2Info.build);
-			ar & make_nvp("major", fc2Info.major);
-			ar & make_nvp("minor", fc2Info.minor);
-			ar & make_nvp("type", fc2Info.type);
-		}
-	}
-}
 
 int psitres_capture(int argc, _TCHAR* argv[]){
 	const string config_file = "config.ini";
@@ -374,14 +317,17 @@ int psitres_capture(int argc, _TCHAR* argv[]){
 	}
 	catch (...){
 		cams.clear();
+		g.wait_for_all();
 		destroyAllWindows();
 		throw;
 	}
 
 	cams.clear();
+	g.wait_for_all();
 	destroyAllWindows();
 	return EXIT_SUCCESS;
 }
+
 
 int _tmain(int argc, _TCHAR* argv[])
 {
@@ -395,6 +341,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	catch (...) {
 		cerr << "..." << endl;
 	}
+	cout << "Enter anything to exit..." << endl;
 	getchar();
 	return ret;
 }

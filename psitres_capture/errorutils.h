@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#pragma once
+
 #include <FlyCapture2.h>
 #include <stdexcept>
 #include <sstream>
