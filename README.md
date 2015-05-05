@@ -1,0 +1,1 @@
+PSITREScapture - an interface to a synchronized pair of stereo cameras that captures platform metadata, image metadata, and images with an emphasis on reliability in the face of I/O errors.  Metadata and images are saved to disk, and images are displayed real-time in a simple GUI.
