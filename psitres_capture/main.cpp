@@ -140,7 +140,7 @@ function_node<FlowData> source(g, unlimited, [](FlowData data){
 		path datePath;
 		datePath = data.BASE_PATH;
 		datePath /= to_iso_string(data.timestamp.date());
-		create_directories(datePath);
+		//create_directories(datePath);
 
 		ostringstream hourStr;
 		hourStr.imbue(data.HOUR_LOCALE);
@@ -149,7 +149,7 @@ function_node<FlowData> source(g, unlimited, [](FlowData data){
 		path hourPath;
 		hourPath = datePath;
 		hourPath /= hourStr.str();
-		create_directories(hourPath);
+		//create_directories(hourPath);
 
 		ostringstream tsStr;
 		tsStr.imbue(data.TS_LOCALE);
@@ -167,6 +167,7 @@ function_node<FlowData> source(g, unlimited, [](FlowData data){
 		path metaPath(imgPath);
 		metaPath += "_ImageMetadata.xml";
 
+		create_directories(hourPath);
 		data.image.Save(imgPath.string().c_str());
 		writeMetadata(metaPath, "ImageMetadata", data.image.GetMetadata());
 
@@ -296,6 +297,7 @@ int psitres_capture(int argc, _TCHAR* argv[]){
 		for (vector<uint32_t>::const_iterator serialIt = PG_SERIALS.cbegin(); serialIt != PG_SERIALS.cend(); serialIt++){
 			namedWindow(to_string(*serialIt));
 			cams.push_back(new PGCam(*serialIt, BASE_PATH, TS_LOCALE, !vm["sync_capture"].as<bool>()));
+			cerr << "Initializing frame counter for " << *serialIt << " to " << resources[*serialIt].frameno;
 		}
 
 		if (vm["sync_capture"].as<bool>()){
